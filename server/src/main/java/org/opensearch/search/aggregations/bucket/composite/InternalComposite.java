@@ -523,7 +523,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         return obj;
     }
 
-    static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
+    public static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
         final List<String> keys;
         final Comparable[] values;
         final List<DocValueFormat> formats;

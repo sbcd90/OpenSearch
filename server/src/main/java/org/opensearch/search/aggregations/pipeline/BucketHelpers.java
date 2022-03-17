@@ -43,6 +43,7 @@ import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.InvalidAggregationPathException;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.opensearch.search.aggregations.bucket.composite.InternalComposite;
 import org.opensearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
@@ -214,6 +215,28 @@ public class BucketHelpers {
                     return value;
                 }
             }
+        } catch (InvalidAggregationPathException e) {
+            return null;
+        }
+    }
+
+    public static Object resolveBucketValueAsObject(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath,
+        GapPolicy gapPolicy
+    ) {
+        try {
+            List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
+
+            Object value;
+            if (propertyValue instanceof InternalComposite.ArrayMap) {
+                value = ((InternalComposite.ArrayMap) propertyValue).entrySet();
+            } else {
+                value = resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
+            }
+            return value;
         } catch (InvalidAggregationPathException e) {
             return null;
         }
