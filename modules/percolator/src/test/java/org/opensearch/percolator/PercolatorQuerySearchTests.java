@@ -126,20 +126,20 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject()
             .startObject("properties")
-            .startObject("companyname")
+            .startObject("monitor_id")
             .field("type", "text")
             .endObject()
             .startObject("query")
             .field("type", "percolator")
             .endObject()
-            .startObject("employee")
+/*            .startObject("employee")
             .field("type", "nested")
             .startObject("properties")
             .startObject("name")
             .field("type", "text")
             .endObject()
             .endObject()
-            .endObject()
+            .endObject()*/
             .endObject()
             .endObject();
         createIndex(
@@ -148,7 +148,8 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .indices()
                 .prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
-                .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
+                .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false)
+                    .put("index.percolator.map_unmapped_fields_as_text", true))
                 .addMapping("employee", mapping)
         );
         client().prepareIndex("test", "employee", "q1")
@@ -156,18 +157,24 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 jsonBuilder().startObject()
                     .field(
                         "query",
-                        QueryBuilders.nestedQuery(
-                            "employee",
-                            matchQuery("employee.name", "virginia potts").operator(Operator.AND),
-                            ScoreMode.Avg
-                        )
+                        QueryBuilders.queryStringQuery("brand:Tesla AND model:3 AND price:<=50000 AND monitor_id:1")
+                    )
+                    .endObject()
+            )
+            .get();
+        client().prepareIndex("test", "employee", "q2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field(
+                        "query",
+                        QueryBuilders.queryStringQuery("company:us-west-2 AND name:Ashish AND monitor_id:2")
                     )
                     .endObject()
             )
             .get();
         client().admin().indices().prepareRefresh().get();
 
-        for (int i = 0; i < 32; i++) {
+ //       for (int i = 0; i < 32; i++) {
             SearchResponse response = client().prepareSearch()
                 .setQuery(
                     new PercolateQueryBuilder(
@@ -175,15 +182,19 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                         BytesReference.bytes(
                             XContentFactory.jsonBuilder()
                                 .startObject()
-                                .field("companyname", "stark")
-                                .startArray("employee")
+                                .field("brand", "Tesla")
+                                .field("model", "3")
+                                .field("price", 40000)
+                                .field("location", "Seattle")
+                                .field("monitor_id", "1")
+/*                                .startArray("employee")
                                 .startObject()
                                 .field("name", "virginia potts")
                                 .endObject()
                                 .startObject()
                                 .field("name", "tony stark")
                                 .endObject()
-                                .endArray()
+                                .endArray()*/
                                 .endObject()
                         ),
                         XContentType.JSON
@@ -194,7 +205,37 @@ public class PercolatorQuerySearchTests extends OpenSearchSingleNodeTestCase {
                 .setSize(0)
                 .get();
             assertHitCount(response, 1);
-        }
+//        }
+
+        SearchResponse response1 = client().prepareSearch()
+            .setQuery(
+                new PercolateQueryBuilder(
+                    "query",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
+                            .field("company", "us-west-2")
+                            .field("name", "Ashish")
+                            .field("monitor_id", "2")
+//                            .field("price", 40000)
+/*                                .startArray("employee")
+                                .startObject()
+                                .field("name", "virginia potts")
+                                .endObject()
+                                .startObject()
+                                .field("name", "tony stark")
+                                .endObject()
+                                .endArray()*/
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            )
+            .addSort("_doc", SortOrder.ASC)
+            // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
+            .setSize(0)
+            .get();
+        assertHitCount(response1, 1);
 
         // We can't check via api... because BitsetCacheListener requires that it can extract shardId from index reader
         // and for percolator it can't do that, but that means we don't keep track of

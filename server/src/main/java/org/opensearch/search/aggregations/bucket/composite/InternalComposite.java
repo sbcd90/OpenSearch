@@ -528,7 +528,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         final Comparable[] values;
         final List<DocValueFormat> formats;
 
-        ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
+        public ArrayMap(List<String> keys, List<DocValueFormat> formats, Comparable[] values) {
             assert keys.size() == values.length && keys.size() == formats.size();
             this.keys = keys;
             this.formats = formats;

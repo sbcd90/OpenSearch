@@ -35,12 +35,7 @@ package org.opensearch.percolator;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -57,6 +52,7 @@ import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -73,6 +69,7 @@ public class PercolateQueryTests extends OpenSearchTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
+    private IndexReader indexReader;
     private DirectoryReader directoryReader;
 
     @Before
@@ -123,13 +120,16 @@ public class PercolateQueryTests extends OpenSearchTestCase {
         indexWriter.addDocuments(docs);
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
+        indexReader = Lucene.wrapAllDocsLive(directoryReader);
+
+        System.out.println(indexReader.numDocs());
         IndexSearcher shardSearcher = newSearcher(directoryReader);
 
         MemoryIndex memoryIndex = new MemoryIndex();
         memoryIndex.addField("field", "the quick brown fox jumps over the lazy dog", new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
         // no scoring, wrapping it in a constant score query:
-        Query query = new ConstantScoreQuery(
+        Query query = //new ConstantScoreQuery(
             new PercolateQuery(
                 "_name",
                 queryStore,
@@ -138,8 +138,8 @@ public class PercolateQueryTests extends OpenSearchTestCase {
                 percolateSearcher,
                 null,
                 new MatchNoDocsQuery("")
-            )
-        );
+            );
+ //       );
         TopDocs topDocs = shardSearcher.search(query, 10);
         assertThat(topDocs.totalHits.value, equalTo(1L));
         assertThat(topDocs.scoreDocs.length, equalTo(1));

@@ -420,6 +420,7 @@ public class PercolatorFieldMapper extends ParametrizedFieldMapper {
 
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext));
         Query query = queryBuilderForProcessing.toQuery(queryShardContext);
+        System.out.println("hit query builder-" + queryBuilderForProcessing.getClass().getName());
         processQuery(query, context);
     }
 

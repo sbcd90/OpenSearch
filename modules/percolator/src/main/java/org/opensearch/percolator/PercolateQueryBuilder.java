@@ -99,11 +99,8 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -628,6 +625,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
+                System.out.println("hit analyzer field-" + fieldName);
                 Analyzer analyzer = fieldNameAnalyzer.analyzers().get(fieldName);
                 if (analyzer != null) {
                     return analyzer;
@@ -657,6 +655,16 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
+        System.out.println("hit percolate");
+        System.out.println(type);
+
+        System.out.println("field name analyzers");
+        for (Map.Entry<String, Analyzer> field: fieldNameAnalyzer.analyzers().entrySet()) {
+            System.out.println(field.getKey() + "-" + field.getValue().toString());
+        }
+        for (BytesReference doc: documents) {
+            System.out.println(doc.utf8ToString());
+        }
         return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
@@ -686,6 +694,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(analyzer))) {
             // Indexing in order here, so that the user provided order matches with the docid sequencing:
             Iterable<ParseContext.Document> iterable = () -> docs.stream().map(ParsedDocument::docs).flatMap(Collection::stream).iterator();
+            System.out.println("hit here before exception");
             indexWriter.addDocuments(iterable);
 
             DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
@@ -730,6 +739,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                                 QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                                 assert in.read() == -1;
                                 queryBuilder = Rewriteable.rewrite(queryBuilder, context);
+                                Query query = queryBuilder.toQuery(context);
+                                System.out.println(queryBuilderFieldType.name());
+                                System.out.println(query.toString());
                                 return queryBuilder.toQuery(context);
                             }
                         }

@@ -57,13 +57,7 @@ import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
 import org.opensearch.index.fielddata.IndexFieldData;
-import org.opensearch.index.mapper.ContentPath;
-import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.MappedFieldType;
-import org.opensearch.index.mapper.Mapper;
-import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.ObjectMapper;
-import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.index.mapper.*;
 import org.opensearch.index.query.support.NestedScope;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.script.Script;
@@ -76,13 +70,7 @@ import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
@@ -299,6 +287,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return failIfFieldMappingNotFound(name, mapperService.fieldType(name));
     }
 
+    public MappedFieldType fieldMapper(String name, Object value) {
+        return failIfFieldMappingNotFound(name, value, mapperService.fieldType(name));
+    }
+
+    public MappedFieldType rangeFieldMapper(String name, Object part1, Object part2) {
+        return failIfFieldMappingNotFound(name, new AbstractMap.SimpleEntry<>(part1, part2), mapperService.fieldType(name));
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return mapperService.getObjectMapper(name);
     }
@@ -351,6 +347,31 @@ public class QueryShardContext extends QueryRewriteContext {
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+        } else {
+            throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
+        }
+    }
+
+    MappedFieldType failIfFieldMappingNotFound(String name, Object value, MappedFieldType fieldMapping) {
+        if (fieldMapping != null || allowUnmappedFields) {
+            return fieldMapping;
+        } else if (mapUnmappedFieldAsString) {
+            if (value instanceof Integer) {
+                NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(name,
+                    NumberFieldMapper.NumberType.INTEGER, false, false);
+                return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            } else if (value instanceof Long) {
+                NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(name,
+                    NumberFieldMapper.NumberType.LONG, false, false);
+                return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            } else if (value instanceof AbstractMap.SimpleEntry) {
+                NumberFieldMapper.Builder builder = new NumberFieldMapper.Builder(name,
+                    NumberFieldMapper.NumberType.LONG, false, false);
+                return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            } else {
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
+                return builder.build(new Mapper.BuilderContext(indexSettings.getSettings(), new ContentPath(1))).fieldType();
+            }
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }

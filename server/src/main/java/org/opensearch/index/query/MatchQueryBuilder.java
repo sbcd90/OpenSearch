@@ -195,8 +195,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.value;
     }
 
-    /** Sets the operator to use when using a boolean query. Defaults to {@code OR}. */
-    public MatchQueryBuilder operator(Operator operator) {
+    /** Sets the operator to use when using a boolean query. Defaults to {@code OR}.
+     * @return*/
+    public QueryBuilder operator(Operator operator) {
         if (operator == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires operator to be non-null");
         }

@@ -79,9 +79,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.opensearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.opensearch.common.lucene.search.Queries.newLenientFieldQuery;
-import static org.opensearch.common.lucene.search.Queries.newUnmappedFieldQuery;
+import static org.opensearch.common.lucene.search.Queries.*;
 import static org.opensearch.index.search.QueryParserHelper.checkForTooManyFields;
 import static org.opensearch.index.search.QueryParserHelper.resolveMappingField;
 import static org.opensearch.index.search.QueryParserHelper.resolveMappingFields;
@@ -348,18 +346,19 @@ public class QueryStringQueryParser extends XQueryParser {
                     return getRangeQuery(field, null, queryText.substring(1), true, false);
                 }
                 // if we are querying a single date field, we also create a range query that leverages the time zone setting
-                if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
+                /*if (context.fieldMapper(field) instanceof DateFieldType && this.timeZone != null) {
                     return getRangeQuery(field, queryText, queryText, true, true);
-                }
+                }*/
             }
         }
 
         Map<String, Float> fields = extractMultiFields(field, quoted);
         if (fields.isEmpty()) {
+            fields.put(field, 1.0f);
             // the requested fields do not match any field in the mapping
             // happens for wildcard fields only since we cannot expand to a valid field name
             // if there is no match in the mappings.
-            return newUnmappedFieldQuery(field);
+//            return newUnmappedFieldQuery(field, new BytesRef(queryText));
         }
         Analyzer oldAnalyzer = queryBuilder.analyzer;
         try {
@@ -418,7 +417,7 @@ public class QueryStringQueryParser extends XQueryParser {
 
         Map<String, Float> fields = extractMultiFields(field, false);
         if (fields.isEmpty()) {
-            return newUnmappedFieldQuery(field);
+            fields.put(field, 1.0f);
         }
 
         List<Query> queries = new ArrayList<>();
@@ -443,7 +442,7 @@ public class QueryStringQueryParser extends XQueryParser {
         boolean endInclusive,
         QueryShardContext context
     ) {
-        MappedFieldType currentFieldType = context.fieldMapper(field);
+        MappedFieldType currentFieldType = context.rangeFieldMapper(field, part1, part2);
         if (currentFieldType == null) {
             return newUnmappedFieldQuery(field);
         }

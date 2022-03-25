@@ -338,7 +338,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
 
     public void testCommonTermsQuery() throws Exception {
 
-        client().admin()
+/*        client().admin()
             .indices()
             .prepareCreate("test")
             .addMapping("type1", "field1", "type=text,analyzer=whitespace")
@@ -422,7 +422,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertThirdHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch()
-            .setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(Operator.AND).analyzer("stop"))
+            .setQuery(matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(Operator.AND).an)
             .get();
         assertHitCount(searchResponse, 3L);
         // stop drops "the" since its a stopword
@@ -459,7 +459,7 @@ public class SearchQueryIT extends OpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch().setQuery(queryStringQuery("v?l*e?1")).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(searchResponse, 1L);*/
     }
 
     public void testLowercaseExpandedTerms() {
