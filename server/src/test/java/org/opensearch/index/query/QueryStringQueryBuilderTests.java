@@ -32,6 +32,7 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -77,6 +78,7 @@ import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.search.QueryStringQueryParser;
+import org.opensearch.index.search.QueryStringQueryParserExt;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -91,14 +93,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.*;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBooleanSubQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -436,8 +437,23 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(query, instanceOf(MatchAllDocsQuery.class));
     }
 
-    public void testToQueryTermQuery() throws IOException {
-        Query query = queryStringQuery("test").defaultField(TEXT_FIELD_NAME).toQuery(createShardContext());
+    public void testToQueryTermQuery() throws IOException, ParseException {
+        Query query = queryStringQuery("a:2 and b:4").defaultField(TEXT_FIELD_NAME).toQuery(createShardContext());
+        QueryStringQueryParserExt queryParser = new QueryStringQueryParserExt(createShardContext(), true);
+        queryParser.parse(queryStringQuery("a:2 and b:4").defaultField(TEXT_FIELD_NAME).queryString());
+
+        Map<String, Object> queryFields = queryParser.getFields();
+        StringBuilder queryString = new StringBuilder();
+        int idx = 0;
+        for (Map.Entry<String, Object> queryField: queryFields.entrySet()) {
+            queryString.append(queryField.getKey()).append(":").append(queryField.getValue());
+
+            if (idx < queryFields.size() - 1) {
+                queryString.append(" and ");
+            }
+            ++idx;
+        }
+        query = queryStringQuery(queryString.toString()).defaultField(TEXT_FIELD_NAME).toQuery(createShardContext());
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
         assertThat(termQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "test")));
