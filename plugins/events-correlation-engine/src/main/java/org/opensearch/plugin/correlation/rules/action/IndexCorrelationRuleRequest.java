@@ -12,13 +12,28 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.plugin.correlation.rules.model.CorrelationRule;
+import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
 
 public class IndexCorrelationRuleRequest extends ActionRequest {
 
-    public IndexCorrelationRuleRequest(StreamInput sin) {
+    private String correlationRuleId;
 
+    private CorrelationRule correlationRule;
+
+    private RestRequest.Method method;
+
+    public IndexCorrelationRuleRequest(String correlationRuleId, CorrelationRule correlationRule, RestRequest.Method method) {
+        super();
+        this.correlationRuleId = correlationRuleId;
+        this.correlationRule = correlationRule;
+        this.method = method;
+    }
+
+    public IndexCorrelationRuleRequest(StreamInput sin) throws IOException {
+        this(sin.readString(), CorrelationRule.readFrom(sin), sin.readEnum(RestRequest.Method.class));
     }
 
     @Override
@@ -28,6 +43,19 @@ public class IndexCorrelationRuleRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        out.writeString(correlationRuleId);
+        correlationRule.writeTo(out);
+    }
+
+    public String getCorrelationRuleId() {
+        return correlationRuleId;
+    }
+
+    public CorrelationRule getCorrelationRule() {
+        return correlationRule;
+    }
+
+    public RestRequest.Method getMethod() {
+        return method;
     }
 }

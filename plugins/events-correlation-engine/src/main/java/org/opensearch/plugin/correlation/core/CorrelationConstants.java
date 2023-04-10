@@ -8,4 +8,16 @@
 
 package org.opensearch.plugin.correlation.core;
 
-public class CorrelationConstants {}
+public class CorrelationConstants {
+    /**
+     * the hyper-parameters for constructing HNSW graphs.
+     * https://lucene.apache.org/core/9_4_0/core/org/apache/lucene/util/hnsw/HnswGraph.html
+     */
+    public static final String METHOD_PARAMETER_M = "m";
+    public static final String METHOD_PARAMETER_EF_CONSTRUCTION = "ef_construction";
+    /**
+     * dimension of the correlation vectors
+     */
+    public static final String DIMENSION = "dimension";
+    public static final String CORRELATION_CONTEXT = "correlation_ctx";
+}

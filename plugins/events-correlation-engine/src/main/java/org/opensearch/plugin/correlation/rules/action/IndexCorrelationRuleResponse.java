@@ -13,20 +13,57 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.correlation.rules.model.CorrelationRule;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
 public class IndexCorrelationRuleResponse extends ActionResponse implements ToXContentObject {
 
-    public IndexCorrelationRuleResponse(StreamInput sin) {}
+    public static final String _ID = "_id";
+    public static final String _VERSION = "_version";
+
+    private String id;
+
+    private Long version;
+
+    private RestStatus status;
+
+    private CorrelationRule correlationRule;
+
+    public IndexCorrelationRuleResponse(String id, Long version, RestStatus status, CorrelationRule correlationRule) {
+        super();
+        this.id = id;
+        this.version = version;
+        this.status = status;
+        this.correlationRule = correlationRule;
+    }
+
+    public IndexCorrelationRuleResponse(StreamInput sin) throws IOException {
+        this(sin.readString(), sin.readLong(), sin.readEnum(RestStatus.class), CorrelationRule.readFrom(sin));
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.startObject().field(_ID, id).field(_VERSION, version);
+
+        builder.field("rule", correlationRule);
+        return builder.endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(id);
+        out.writeLong(version);
+        out.writeEnum(status);
+        correlationRule.writeTo(out);
+    }
 
+    public String getId() {
+        return id;
+    }
+
+    public RestStatus getStatus() {
+        return status;
     }
 }
