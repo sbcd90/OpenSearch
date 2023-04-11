@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.correlation.rules.transport;
+package org.opensearch.plugin.correlation.events.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,6 +20,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.client.Client;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -29,9 +30,9 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.NestedQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
-import org.opensearch.plugin.correlation.rules.action.IndexCorrelationAction;
-import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRequest;
-import org.opensearch.plugin.correlation.rules.action.IndexCorrelationResponse;
+import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.IndexCorrelationRequest;
+import org.opensearch.plugin.correlation.events.action.IndexCorrelationResponse;
 import org.opensearch.plugin.correlation.rules.model.CorrelationQuery;
 import org.opensearch.plugin.correlation.rules.model.CorrelationRule;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
@@ -62,6 +63,8 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
 
     private final Settings settings;
 
+    private final ClusterService clusterService;
+
     private volatile long correlationTimeWindow;
 
     @Inject
@@ -70,12 +73,16 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
         Client client,
         NamedXContentRegistry xContentRegistry,
         Settings settings,
-        ActionFilters actionFilters) {
+        ActionFilters actionFilters,
+        ClusterService clusterService) {
         super(IndexCorrelationAction.NAME, transportService, actionFilters, IndexCorrelationRequest::new);
         this.client = client;
         this.xContentRegistry = xContentRegistry;
         this.settings = settings;
+        this.clusterService = clusterService;
         this.correlationTimeWindow = EventsCorrelationSettings.CORRELATION_TIME_WINDOW.get(this.settings).getMillis();
+
+        this.clusterService.getClusterSettings().addSettingsUpdateConsumer(EventsCorrelationSettings.CORRELATION_TIME_WINDOW, it -> correlationTimeWindow = it.getMillis());
     }
 
     @Override
@@ -95,7 +102,6 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
         }
 
         void start() {
-            log.info("hit here5");
             String inputIndex = request.getIndex();
             String event = request.getEvent();
 
@@ -219,7 +225,6 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                     }
                 });
             } else {
-                log.info("hit here4");
                 // orphan event
                 onOperation(true, new HashMap<>());
             }
@@ -295,7 +300,6 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                         for (Map.Entry<String, Set<String>> neighborEvent: eventsAdjacencyList.entrySet()) {
                             neighborEvents.put(neighborEvent.getKey(), new ArrayList<>(neighborEvent.getValue()));
                         }
-                        log.info("hit here2");
                         onOperation(false, neighborEvents);
                     }
 
@@ -305,7 +309,6 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                     }
                 });
             } else {
-                log.info("hit here1");
                 // orphan event
                 onOperation(true, new HashMap<>());
             }

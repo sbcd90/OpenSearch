@@ -29,10 +29,12 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecService;
 import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
 import org.opensearch.plugin.correlation.core.index.query.CorrelationQueryBuilder;
-import org.opensearch.plugin.correlation.rules.action.IndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.StoreCorrelationAction;
+import org.opensearch.plugin.correlation.events.transport.TransportStoreCorrelationAction;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.resthandler.RestIndexCorrelationRuleAction;
-import org.opensearch.plugin.correlation.rules.transport.TransportIndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.transport.TransportIndexCorrelationAction;
 import org.opensearch.plugin.correlation.rules.transport.TransportIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
 import org.opensearch.plugin.correlation.utils.CorrelationRuleIndices;
@@ -113,7 +115,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionPlugin.ActionHandler<>(IndexCorrelationRuleAction.INSTANCE, TransportIndexCorrelationRuleAction.class),
-            new ActionPlugin.ActionHandler<>(IndexCorrelationAction.INSTANCE, TransportIndexCorrelationAction.class));
+            new ActionPlugin.ActionHandler<>(IndexCorrelationAction.INSTANCE, TransportIndexCorrelationAction.class),
+            new ActionPlugin.ActionHandler<>(StoreCorrelationAction.INSTANCE, TransportStoreCorrelationAction.class));
     }
 
     @Override
@@ -125,6 +128,7 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
     public List<Setting<?>> getSettings() {
         return List.of(
             EventsCorrelationSettings.IS_CORRELATION_INDEX_SETTING,
+            EventsCorrelationSettings.CORRELATION_HISTORY_INDEX_SHARDS,
             EventsCorrelationSettings.CORRELATION_TIME_WINDOW
         );
     }

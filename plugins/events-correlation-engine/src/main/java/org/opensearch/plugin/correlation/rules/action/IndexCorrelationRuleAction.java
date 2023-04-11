@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 public class IndexCorrelationRuleAction extends ActionType<IndexCorrelationRuleResponse> {
 
     public static final IndexCorrelationRuleAction INSTANCE = new IndexCorrelationRuleAction();
-    public static final String NAME = "cluster:admin/correlation/rules";
+    public static final String NAME = "cluster:admin/index/correlation/rules";
 
     private IndexCorrelationRuleAction() {
         super(NAME, IndexCorrelationRuleResponse::new);

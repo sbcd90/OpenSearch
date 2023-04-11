@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.correlation.rules.action;
+package org.opensearch.plugin.correlation.events.action;
 
 import org.opensearch.action.ActionType;
 
 public class IndexCorrelationAction extends ActionType<IndexCorrelationResponse> {
 
     public static final IndexCorrelationAction INSTANCE = new IndexCorrelationAction();
-    public static final String NAME = "cluster:admin/correlation/events";
+    public static final String NAME = "cluster:admin/index/correlation/events";
 
     private IndexCorrelationAction() {
         super(NAME, IndexCorrelationResponse::new);

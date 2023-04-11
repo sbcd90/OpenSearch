@@ -19,8 +19,14 @@ public class EventsCorrelationSettings {
     public static final String CORRELATION_INDEX = "index.correlation";
     public static final Setting<Boolean> IS_CORRELATION_INDEX_SETTING = Setting.boolSetting(CORRELATION_INDEX, false, IndexScope);
 
+    public static final Setting<Integer> CORRELATION_HISTORY_INDEX_SHARDS = Setting.intSetting(
+        "plugins.events_correlation.correlation_time_window",
+        1,
+        Setting.Property.NodeScope, Setting.Property.Dynamic
+    );
+
     public static final Setting<TimeValue> CORRELATION_TIME_WINDOW = Setting.positiveTimeSetting(
-        "plugins.security_analytics.correlation_time_window",
+        "plugins.events_correlation.correlation_time_window",
         new TimeValue(5, TimeUnit.MINUTES),
         Setting.Property.NodeScope, Setting.Property.Dynamic
     );

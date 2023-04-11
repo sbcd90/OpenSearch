@@ -31,9 +31,14 @@ public class IndexUtils {
     private static final String SCHEMA_VERSION = "schema_version";
 
     public static Boolean correlationRuleIndexUpdated = false;
+    public static Boolean correlationHistoryIndexUpdated = false;
 
     public static void correlationRuleIndexUpdated() {
         correlationRuleIndexUpdated = true;
+    }
+
+    public static void correlationHistoryIndexUpdated() {
+        correlationHistoryIndexUpdated = true;
     }
 
     public static Boolean shouldUpdateIndex(IndexMetadata index, String mapping) throws IOException {

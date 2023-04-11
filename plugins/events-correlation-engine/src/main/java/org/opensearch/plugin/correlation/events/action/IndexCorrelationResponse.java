@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.plugin.correlation.rules.action;
+package org.opensearch.plugin.correlation.events.action;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.io.stream.StreamInput;

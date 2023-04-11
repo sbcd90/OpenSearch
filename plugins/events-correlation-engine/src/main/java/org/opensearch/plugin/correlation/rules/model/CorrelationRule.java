@@ -76,18 +76,6 @@ public class CorrelationRule implements Writeable, ToXContentObject {
         }
     }
 
-    public static CorrelationRule docParse(XContentParser xcp, String id, Long version) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, xcp.nextToken(), xcp);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, xcp.nextToken(), xcp);
-        CorrelationRule correlationRule = xcp.namedObject(CorrelationRule.class, xcp.currentName(), null);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, xcp.nextToken(), xcp);
-
-        correlationRule.setId(id);
-        correlationRule.setVersion(version);
-        return correlationRule;
-    }
-
     public static CorrelationRule parse(XContentParser xcp, String id, Long version) throws IOException {
         if (id == null) {
             id = NO_ID;
