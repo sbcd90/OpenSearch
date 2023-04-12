@@ -30,7 +30,9 @@ import org.opensearch.plugin.correlation.core.index.codec.CorrelationCodecServic
 import org.opensearch.plugin.correlation.core.index.mapper.VectorFieldMapper;
 import org.opensearch.plugin.correlation.core.index.query.CorrelationQueryBuilder;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.SearchCorrelatedEventsAction;
 import org.opensearch.plugin.correlation.events.action.StoreCorrelationAction;
+import org.opensearch.plugin.correlation.events.transport.TransportSearchCorrelatedEventsAction;
 import org.opensearch.plugin.correlation.events.transport.TransportStoreCorrelationAction;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.resthandler.RestIndexCorrelationRuleAction;
@@ -120,7 +122,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         return List.of(
             new ActionPlugin.ActionHandler<>(IndexCorrelationRuleAction.INSTANCE, TransportIndexCorrelationRuleAction.class),
             new ActionPlugin.ActionHandler<>(IndexCorrelationAction.INSTANCE, TransportIndexCorrelationAction.class),
-            new ActionPlugin.ActionHandler<>(StoreCorrelationAction.INSTANCE, TransportStoreCorrelationAction.class));
+            new ActionPlugin.ActionHandler<>(StoreCorrelationAction.INSTANCE, TransportStoreCorrelationAction.class),
+            new ActionPlugin.ActionHandler<>(SearchCorrelatedEventsAction.INSTANCE, TransportSearchCorrelatedEventsAction.class));
     }
 
     @Override

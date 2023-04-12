@@ -21,20 +21,24 @@ public class SearchCorrelatedEventsRequest extends ActionRequest {
 
     private String event;
 
+    private String timestampField;
+
     private Long timeWindow;
 
     private Integer nearbyEvents;
 
-    public SearchCorrelatedEventsRequest(String index, String event, Long timeWindow, Integer nearbyEvents) {
+    public SearchCorrelatedEventsRequest(String index, String event, String timestampField, Long timeWindow, Integer nearbyEvents) {
         super();
         this.index = index;
         this.event = event;
+        this.timestampField = timestampField;
         this.timeWindow = timeWindow;
         this.nearbyEvents = nearbyEvents;
     }
 
     public SearchCorrelatedEventsRequest(StreamInput sin) throws IOException {
         this(
+            sin.readString(),
             sin.readString(),
             sin.readString(),
             sin.readLong(),
@@ -51,7 +55,28 @@ public class SearchCorrelatedEventsRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeString(event);
+        out.writeString(timestampField);
         out.writeLong(timeWindow);
         out.writeInt(nearbyEvents);
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public String getEvent() {
+        return event;
+    }
+
+    public String getTimestampField() {
+        return timestampField;
+    }
+
+    public Long getTimeWindow() {
+        return timeWindow;
+    }
+
+    public Integer getNearbyEvents() {
+        return nearbyEvents;
     }
 }

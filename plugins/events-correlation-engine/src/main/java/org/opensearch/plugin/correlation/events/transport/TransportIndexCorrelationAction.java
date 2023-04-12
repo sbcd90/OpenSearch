@@ -158,7 +158,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
 
         private void prepRulesForCorrelatedEventsGeneration(String index, String event, List<CorrelationRule> correlationRules) {
             MultiSearchRequest mSearchRequest = new MultiSearchRequest();
-            SearchRequest sampleSearchRequest = null;
+            SearchRequest eventSearchRequest = null;
 
             for (CorrelationRule rule: correlationRules) {
                 // assuming no index duplication in a rule.
@@ -182,23 +182,23 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                     searchRequest.source(searchSourceBuilder);
                     mSearchRequest.add(searchRequest);
 
-                    if (sampleSearchRequest == null) {
-                        SearchSourceBuilder sampleSearchSourceBuilder = new SearchSourceBuilder();
-                        sampleSearchSourceBuilder.query(QueryBuilders.matchQuery("_id", event));
-                        sampleSearchSourceBuilder.fetchSource(false);
+                    if (eventSearchRequest == null) {
+                        SearchSourceBuilder eventSearchSourceBuilder = new SearchSourceBuilder();
+                        eventSearchSourceBuilder.query(QueryBuilders.matchQuery("_id", event));
+                        eventSearchSourceBuilder.fetchSource(false);
 
                         // assuming all queries belonging to an index use the same timestamp field.
-                        sampleSearchSourceBuilder.fetchField(query.get().getTimestampField());
+                        eventSearchSourceBuilder.fetchField(query.get().getTimestampField());
 
-                        sampleSearchRequest = new SearchRequest();
-                        sampleSearchRequest.indices(index);
-                        sampleSearchRequest.source(sampleSearchSourceBuilder);
+                        eventSearchRequest = new SearchRequest();
+                        eventSearchRequest.indices(index);
+                        eventSearchRequest.source(eventSearchSourceBuilder);
                     }
                 }
             }
 
             if (!mSearchRequest.requests().isEmpty()) {
-                SearchRequest finalSampleSearchRequest = sampleSearchRequest;
+                SearchRequest finalEventSearchRequest = eventSearchRequest;
                 client.multiSearch(mSearchRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(MultiSearchResponse items) {
@@ -235,7 +235,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                         }
 
                         if (timestamp == null) {
-                            client.search(finalSampleSearchRequest, new ActionListener<>() {
+                            client.search(finalEventSearchRequest, new ActionListener<>() {
                                 @Override
                                 public void onResponse(SearchResponse response) {
                                     if (response.isTimedOut()) {

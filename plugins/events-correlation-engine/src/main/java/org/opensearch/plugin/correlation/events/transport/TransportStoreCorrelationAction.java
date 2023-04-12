@@ -341,37 +341,66 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                                     continue;
                                 }
 
-                                assert response.getResponse().getHits().getTotalHits().value == 1;
-                                ++totalNeighbors;
+                                if (response.getResponse().getHits().getTotalHits().value == 1) {
+                                    ++totalNeighbors;
 
-                                SearchHit hit = response.getResponse().getHits().getHits()[0];
-                                Map<String, Object> source = hit.getSourceAsMap();
+                                    SearchHit hit = response.getResponse().getHits().getHits()[0];
+                                    Map<String, Object> source = hit.getSourceAsMap();
 
-                                assert source != null;
-                                long neighborLevel = Long.parseLong(source.get("level").toString());
-                                String correlatedEvent = source.get("event1").toString();
-                                String correlatedIndex = source.get("index1").toString();
+                                    assert source != null;
+                                    long neighborLevel = Long.parseLong(source.get("level").toString());
+                                    String correlatedEvent = source.get("event1").toString();
+                                    String correlatedIndex = source.get("index1").toString();
 
-                                try {
-                                    float[] corrVector = new float[3];
-                                    if (level != prevLevel) {
+                                    try {
+                                        float[] corrVector = new float[3];
+                                        if (level != prevLevel) {
+                                            for (int i = 0; i < 2; ++i) {
+                                                corrVector[i] = ((float) level) - 50.0f;
+                                            }
+                                            corrVector[0] = (float) level;
+                                            corrVector[2] = timestampFeature;
+
+                                            Correlation event = new Correlation(
+                                                NO_ID,
+                                                NO_VERSION,
+                                                false,
+                                                level,
+                                                request.getEvent(),
+                                                "",
+                                                corrVector,
+                                                eventTimestamp,
+                                                request.getIndex(),
+                                                "",
+                                                request.getTags(),
+                                                0L
+                                            );
+
+                                            IndexRequest indexRequest = new IndexRequest(Correlation.CORRELATION_HISTORY_INDEX)
+                                                .source(event.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                                                .timeout(TimeValue.timeValueSeconds(60));
+                                            bulkRequest.add(indexRequest);
+                                        }
+
+                                        corrVector = new float[3];
                                         for (int i = 0; i < 2; ++i) {
                                             corrVector[i] = ((float) level) - 50.0f;
                                         }
-                                        corrVector[0] = (float) level;
+                                        corrVector[0] = (2.0f * ((float) level) - 50.0f) / 2.0f;
+                                        corrVector[1] = (2.0f * ((float) neighborLevel) - 50.0f) / 2.0f;
                                         corrVector[2] = timestampFeature;
 
                                         Correlation event = new Correlation(
                                             NO_ID,
                                             NO_VERSION,
                                             false,
-                                            level,
+                                            (long) ((2.0f * ((float) level) - 50.0f) / 2.0f),
                                             request.getEvent(),
-                                            "",
+                                            correlatedEvent,
                                             corrVector,
                                             eventTimestamp,
                                             request.getIndex(),
-                                            "",
+                                            correlatedIndex,
                                             request.getTags(),
                                             0L
                                         );
@@ -380,39 +409,11 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                                             .source(event.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
                                             .timeout(TimeValue.timeValueSeconds(60));
                                         bulkRequest.add(indexRequest);
+                                    } catch (IOException ex) {
+                                        onFailures(ex);
                                     }
-
-                                    corrVector = new float[3];
-                                    for (int i = 0; i < 2; ++i) {
-                                        corrVector[i] = ((float) level) - 50.0f;
-                                    }
-                                    corrVector[0] = (2.0f * ((float) level) - 50.0f) / 2.0f;
-                                    corrVector[1] = (2.0f * ((float) neighborLevel) - 50.0f) / 2.0f;
-                                    corrVector[2] = timestampFeature;
-
-                                    Correlation event = new Correlation(
-                                        NO_ID,
-                                        NO_VERSION,
-                                        false,
-                                        (long) ((2.0f * ((float) level) - 50.0f) / 2.0f),
-                                        request.getEvent(),
-                                        correlatedEvent,
-                                        corrVector,
-                                        eventTimestamp,
-                                        request.getIndex(),
-                                        correlatedIndex,
-                                        request.getTags(),
-                                        0L
-                                    );
-
-                                    IndexRequest indexRequest = new IndexRequest(Correlation.CORRELATION_HISTORY_INDEX)
-                                        .source(event.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-                                        .timeout(TimeValue.timeValueSeconds(60));
-                                    bulkRequest.add(indexRequest);
-                                } catch (IOException ex) {
-                                    onFailures(ex);
+                                    prevLevel = level;
                                 }
-                                prevLevel = level;
                             }
 
                             if (totalNeighbors > 0L) {

@@ -14,6 +14,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugin.correlation.events.model.EventWithScore;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,16 +24,20 @@ public class SearchCorrelatedEventsResponse extends ActionResponse implements To
 
     private List<EventWithScore> events;
 
+    private RestStatus status;
+
     private static final String EVENTS = "events";
 
-    public SearchCorrelatedEventsResponse(List<EventWithScore> events) {
+    public SearchCorrelatedEventsResponse(List<EventWithScore> events, RestStatus status) {
         super();
         this.events = events;
+        this.status = status;
     }
 
     public SearchCorrelatedEventsResponse(StreamInput sin) throws IOException {
         this(
-            Collections.unmodifiableList(sin.readList(EventWithScore::new))
+            Collections.unmodifiableList(sin.readList(EventWithScore::new)),
+            sin.readEnum(RestStatus.class)
         );
     }
 
@@ -47,5 +52,6 @@ public class SearchCorrelatedEventsResponse extends ActionResponse implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(events);
+        out.writeEnum(status);
     }
 }

@@ -417,6 +417,35 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         Assert.assertEquals(12L, searchResponse.getHits().getTotalHits().value);
     }
 
+    public void testStoringCorrelationWithMultipleLevels() throws ExecutionException, InterruptedException {
+        String networkIndex = "vpc_flow";
+        CreateIndexRequest networkRequest = new CreateIndexRequest(networkIndex)
+            .mapping(networkMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(networkRequest).get();
+
+        String adLdapIndex = "ad_logs";
+        CreateIndexRequest adLdapRequest = new CreateIndexRequest(adLdapIndex)
+            .mapping(adLdapMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(adLdapRequest).get();
+
+        String windowsIndex = "windows";
+        CreateIndexRequest windowsRequest = new CreateIndexRequest(windowsIndex)
+            .mapping(windowsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(windowsRequest).get();
+
+        List<CorrelationQuery> networkWindowsAdLdapQuery = Arrays.asList(
+            new CorrelationQuery("vpc_flow", "dstaddr:4.5.6.7 or dstaddr:4.5.6.6", "timestamp"),
+            new CorrelationQuery("windows", "winlog.event_data.SubjectDomainName:NTAUTHORI*", "winlog.timestamp"),
+            new CorrelationQuery("ad_logs", "ResultType:50126", "timestamp")
+        );
+        CorrelationRule networkWindowsAdLdapRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "netowrk to windows to ad/ldap", networkWindowsAdLdapQuery);
+        IndexCorrelationRuleRequest networkWindowsAdLdapRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, networkWindowsAdLdapRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, networkWindowsAdLdapRequest).get();
+    }
+
     private String networkMappings() {
         return "\"properties\": {\n" +
             "      \"version\": {\n" +
