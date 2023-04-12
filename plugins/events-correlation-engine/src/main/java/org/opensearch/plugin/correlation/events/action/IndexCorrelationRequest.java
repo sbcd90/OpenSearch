@@ -21,14 +21,17 @@ public class IndexCorrelationRequest extends ActionRequest {
 
     private String event;
 
-    public IndexCorrelationRequest(String index, String event) {
+    private Boolean store;
+
+    public IndexCorrelationRequest(String index, String event, Boolean store) {
         super();
         this.index = index;
         this.event = event;
+        this.store = store;
     }
 
     public IndexCorrelationRequest(StreamInput sin) throws IOException {
-        this(sin.readString(), sin.readString());
+        this(sin.readString(), sin.readString(), sin.readBoolean());
     }
 
     @Override
@@ -40,6 +43,7 @@ public class IndexCorrelationRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeString(event);
+        out.writeBoolean(store);
     }
 
     public String getIndex() {
@@ -48,5 +52,9 @@ public class IndexCorrelationRequest extends ActionRequest {
 
     public String getEvent() {
         return event;
+    }
+
+    public Boolean getStore() {
+        return store;
     }
 }

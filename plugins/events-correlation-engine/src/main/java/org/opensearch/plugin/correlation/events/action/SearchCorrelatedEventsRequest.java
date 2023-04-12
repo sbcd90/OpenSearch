@@ -17,7 +17,30 @@ import java.io.IOException;
 
 public class SearchCorrelatedEventsRequest extends ActionRequest {
 
-    public SearchCorrelatedEventsRequest(StreamInput sin) {}
+    private String index;
+
+    private String event;
+
+    private Long timeWindow;
+
+    private Integer nearbyEvents;
+
+    public SearchCorrelatedEventsRequest(String index, String event, Long timeWindow, Integer nearbyEvents) {
+        super();
+        this.index = index;
+        this.event = event;
+        this.timeWindow = timeWindow;
+        this.nearbyEvents = nearbyEvents;
+    }
+
+    public SearchCorrelatedEventsRequest(StreamInput sin) throws IOException {
+        this(
+            sin.readString(),
+            sin.readString(),
+            sin.readLong(),
+            sin.readInt()
+        );
+    }
 
     @Override
     public ActionRequestValidationException validate() {
@@ -26,6 +49,9 @@ public class SearchCorrelatedEventsRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        out.writeString(index);
+        out.writeString(event);
+        out.writeLong(timeWindow);
+        out.writeInt(nearbyEvents);
     }
 }

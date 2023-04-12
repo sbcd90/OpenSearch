@@ -17,7 +17,7 @@
     },
     "corr_vector": {
       "type": "correlation_vector",
-      "dimension": 4,
+      "dimension": 3,
       "correlation_ctx": {
         "similarityFunction": "EUCLIDEAN",
         "parameters": {

@@ -33,6 +33,9 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationRequest;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationResponse;
+import org.opensearch.plugin.correlation.events.action.StoreCorrelationAction;
+import org.opensearch.plugin.correlation.events.action.StoreCorrelationRequest;
+import org.opensearch.plugin.correlation.events.action.StoreCorrelationResponse;
 import org.opensearch.plugin.correlation.rules.model.CorrelationQuery;
 import org.opensearch.plugin.correlation.rules.model.CorrelationRule;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
@@ -155,6 +158,7 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
 
         private void prepRulesForCorrelatedEventsGeneration(String index, String event, List<CorrelationRule> correlationRules) {
             MultiSearchRequest mSearchRequest = new MultiSearchRequest();
+            SearchRequest sampleSearchRequest = null;
 
             for (CorrelationRule rule: correlationRules) {
                 // assuming no index duplication in a rule.
@@ -177,11 +181,24 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                     searchRequest.indices(index);
                     searchRequest.source(searchSourceBuilder);
                     mSearchRequest.add(searchRequest);
+
+                    if (sampleSearchRequest == null) {
+                        SearchSourceBuilder sampleSearchSourceBuilder = new SearchSourceBuilder();
+                        sampleSearchSourceBuilder.query(QueryBuilders.matchQuery("_id", event));
+                        sampleSearchSourceBuilder.fetchSource(false);
+
+                        // assuming all queries belonging to an index use the same timestamp field.
+                        sampleSearchSourceBuilder.fetchField(query.get().getTimestampField());
+
+                        sampleSearchRequest = new SearchRequest();
+                        sampleSearchRequest.indices(index);
+                        sampleSearchRequest.source(sampleSearchSourceBuilder);
+                    }
                 }
             }
 
             if (!mSearchRequest.requests().isEmpty()) {
-
+                SearchRequest finalSampleSearchRequest = sampleSearchRequest;
                 client.multiSearch(mSearchRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(MultiSearchResponse items) {
@@ -216,7 +233,32 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                             }
                             ++idx;
                         }
-                        generateCorrelatedEvents(index, event, timestamp, indexQueriesMap);
+
+                        if (timestamp == null) {
+                            client.search(finalSampleSearchRequest, new ActionListener<>() {
+                                @Override
+                                public void onResponse(SearchResponse response) {
+                                    if (response.isTimedOut()) {
+                                        onFailures(new OpenSearchStatusException(response.toString(), RestStatus.REQUEST_TIMEOUT));
+                                    }
+                                    SearchHits searchHits = response.getHits();
+                                    if (searchHits.getTotalHits().value == 1) {
+                                        Optional<String> timestampField = searchHits.getAt(0).getFields().keySet().stream().findFirst();
+                                        timestampField.ifPresent(s -> generateCorrelatedEvents(index, event,
+                                            searchHits.getAt(0).getFields().get(s).<Long>getValue(), indexQueriesMap));
+                                    } else {
+                                        onFailures(new OpenSearchStatusException("failed at generate correlated events", RestStatus.INTERNAL_SERVER_ERROR));
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    onFailures(e);
+                                }
+                            });
+                        } else {
+                            generateCorrelatedEvents(index, event, timestamp, indexQueriesMap);
+                        }
                     }
 
                     @Override
@@ -226,7 +268,33 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                 });
             } else {
                 // orphan event
-                onOperation(true, new HashMap<>());
+                if (request.getStore()) {
+                    StoreCorrelationRequest storeCorrelationRequest = new StoreCorrelationRequest(
+                        index,
+                        event,
+                        // as there are no rules there is no timestamp field, assuming event is inserted now.
+                        System.currentTimeMillis(),
+                        Map.of(),
+                        List.of()
+                    );
+                    client.execute(StoreCorrelationAction.INSTANCE, storeCorrelationRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(StoreCorrelationResponse response) {
+                            if (response.getStatus().equals(RestStatus.OK)) {
+                                onOperation(true, new HashMap<>());
+                            } else {
+                                onFailures(new OpenSearchStatusException("Failed to store correlations", RestStatus.INTERNAL_SERVER_ERROR));
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onFailures(e);
+                        }
+                    });
+                } else {
+                    onOperation(true, new HashMap<>());
+                }
             }
         }
 
@@ -300,7 +368,41 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                         for (Map.Entry<String, Set<String>> neighborEvent: eventsAdjacencyList.entrySet()) {
                             neighborEvents.put(neighborEvent.getKey(), new ArrayList<>(neighborEvent.getValue()));
                         }
-                        onOperation(false, neighborEvents);
+
+                        if (request.getStore()) {
+                            StoreCorrelationRequest storeCorrelationRequest = new StoreCorrelationRequest(
+                                inputIndex,
+                                event,
+                                timestamp,
+                                neighborEvents,
+                                List.of()
+                            );
+                            client.execute(StoreCorrelationAction.INSTANCE, storeCorrelationRequest, new ActionListener<>() {
+                                @Override
+                                public void onResponse(StoreCorrelationResponse response) {
+                                    if (response.getStatus().equals(RestStatus.OK)) {
+                                        if (neighborEvents.isEmpty()) {
+                                            onOperation(true, neighborEvents);
+                                        } else {
+                                            onOperation(false, neighborEvents);
+                                        }
+                                    } else {
+                                        onFailures(new OpenSearchStatusException("Failed to store correlations", RestStatus.INTERNAL_SERVER_ERROR));
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    onFailures(e);
+                                }
+                            });
+                        } else {
+                            if (neighborEvents.isEmpty()) {
+                                onOperation(true, neighborEvents);
+                            } else {
+                                onOperation(false, neighborEvents);
+                            }
+                        }
                     }
 
                     @Override
@@ -310,7 +412,32 @@ public class TransportIndexCorrelationAction extends HandledTransportAction<Inde
                 });
             } else {
                 // orphan event
-                onOperation(true, new HashMap<>());
+                if (request.getStore()) {
+                    StoreCorrelationRequest storeCorrelationRequest = new StoreCorrelationRequest(
+                        inputIndex,
+                        event,
+                        timestamp,
+                        Map.of(),
+                        List.of()
+                    );
+                    client.execute(StoreCorrelationAction.INSTANCE, storeCorrelationRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(StoreCorrelationResponse response) {
+                            if (response.getStatus().equals(RestStatus.OK)) {
+                                onOperation(true, new HashMap<>());
+                            } else {
+                                onFailures(new OpenSearchStatusException("Failed to store correlations", RestStatus.INTERNAL_SERVER_ERROR));
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onFailures(e);
+                        }
+                    });
+                } else {
+                    onOperation(true, new HashMap<>());
+                }
             }
         }
 

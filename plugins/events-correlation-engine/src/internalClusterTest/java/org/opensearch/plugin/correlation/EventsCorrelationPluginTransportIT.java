@@ -19,6 +19,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -26,6 +27,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationAction;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationRequest;
 import org.opensearch.plugin.correlation.events.action.IndexCorrelationResponse;
+import org.opensearch.plugin.correlation.events.model.Correlation;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleRequest;
 import org.opensearch.plugin.correlation.rules.action.IndexCorrelationRuleResponse;
@@ -152,11 +154,12 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         client().execute(IndexCorrelationRuleAction.INSTANCE, request).get();
 
         IndexRequest indexRequestWindows = new IndexRequest("windows")
-            .source(sampleWindowsEvent(), XContentType.JSON);
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexResponse response = client().index(indexRequestWindows).get();
         String eventId = response.getId();
 
-        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("windows", eventId);
+        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("windows", eventId, false);
         IndexCorrelationResponse correlationResponse = client().execute(IndexCorrelationAction.INSTANCE, correlationRequest).get();
 
         Assert.assertEquals(200, correlationResponse.getStatus().getStatus());
@@ -185,11 +188,12 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         client().execute(IndexCorrelationRuleAction.INSTANCE, request).get();
 
         IndexRequest indexRequestWindows = new IndexRequest("windows")
-            .source(sampleWindowsEvent(), XContentType.JSON);
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexResponse response = client().index(indexRequestWindows).get();
         String eventId = response.getId();
 
-        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("windows", eventId);
+        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("windows", eventId, false);
         IndexCorrelationResponse correlationResponse = client().execute(IndexCorrelationAction.INSTANCE, correlationRequest).get();
 
         Assert.assertEquals(200, correlationResponse.getStatus().getStatus());
@@ -219,17 +223,17 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         client().execute(IndexCorrelationRuleAction.INSTANCE, request).get();
 
         IndexRequest indexRequestWindows = new IndexRequest("windows")
-            .source(sampleWindowsEvent(), XContentType.JSON);
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequestWindows).get();
 
         IndexRequest indexRequestAppLogs = new IndexRequest("app_logs")
-            .source(sampleAppLogsEvent(), XContentType.JSON);
+            .source(sampleAppLogsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexResponse response = client().index(indexRequestAppLogs).get();
         String eventId = response.getId();
 
-        // sleep needed to ensure both events are inserted into their respective indices.
-        Thread.sleep(10000);
-        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("app_logs", eventId);
+        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("app_logs", eventId, false);
         IndexCorrelationResponse correlationResponse = client().execute(IndexCorrelationAction.INSTANCE, correlationRequest).get();
 
         Assert.assertEquals(200, correlationResponse.getStatus().getStatus());
@@ -267,22 +271,226 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         client().execute(IndexCorrelationRuleAction.INSTANCE, request2).get();
 
         IndexRequest indexRequestWindows = new IndexRequest("windows")
-            .source(sampleWindowsEvent(), XContentType.JSON);
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequestWindows).get();
 
         IndexRequest indexRequestAppLogs = new IndexRequest("app_logs")
-            .source(sampleAppLogsEvent(), XContentType.JSON);
+            .source(sampleAppLogsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         IndexResponse response = client().index(indexRequestAppLogs).get();
         String eventId = response.getId();
 
-        // sleep needed to ensure both events are inserted into their respective indices.
-        Thread.sleep(10000);
-        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("app_logs", eventId);
+        IndexCorrelationRequest correlationRequest = new IndexCorrelationRequest("app_logs", eventId, false);
         IndexCorrelationResponse correlationResponse = client().execute(IndexCorrelationAction.INSTANCE, correlationRequest).get();
 
         Assert.assertEquals(200, correlationResponse.getStatus().getStatus());
         Assert.assertFalse(correlationResponse.getOrphan());
         Assert.assertEquals(1, correlationResponse.getNeighborEvents().size());
+    }
+
+    public void testStoringCorrelationWithMultipleRule() throws ExecutionException, InterruptedException {
+        String networkIndex = "vpc_flow";
+        CreateIndexRequest networkRequest = new CreateIndexRequest(networkIndex)
+            .mapping(networkMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(networkRequest).get();
+
+        String adLdapIndex = "ad_logs";
+        CreateIndexRequest adLdapRequest = new CreateIndexRequest(adLdapIndex)
+            .mapping(adLdapMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(adLdapRequest).get();
+
+        String windowsIndex = "windows";
+        CreateIndexRequest windowsRequest = new CreateIndexRequest(windowsIndex)
+            .mapping(windowsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(windowsRequest).get();
+
+        String appLogsIndex = "app_logs";
+        CreateIndexRequest appLogsRequest = new CreateIndexRequest(appLogsIndex)
+            .mapping(appLogsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(appLogsRequest).get();
+
+        String s3AccessLogsIndex = "s3_access_logs";
+        CreateIndexRequest s3AccessLogsRequest = new CreateIndexRequest(s3AccessLogsIndex)
+            .mapping(s3AccessLogsMapping()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(s3AccessLogsRequest).get();
+
+        List<CorrelationQuery> windowsAppLogsQuery = Arrays.asList(
+            new CorrelationQuery("windows", "host.hostname:EC2AMAZ*", "winlog.timestamp"),
+            new CorrelationQuery("app_logs", "endpoint:\\/customer_records.txt", "timestamp")
+        );
+        CorrelationRule windowsAppLogsRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "windows to app logs", windowsAppLogsQuery);
+        IndexCorrelationRuleRequest windowsAppLogsRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, windowsAppLogsRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, windowsAppLogsRequest).get();
+
+        List<CorrelationQuery> networkWindowsAdLdapQuery = Arrays.asList(
+            new CorrelationQuery("vpc_flow", "dstaddr:4.5.6.7 or dstaddr:4.5.6.6", "timestamp"),
+            new CorrelationQuery("windows", "winlog.event_data.SubjectDomainName:NTAUTHORI*", "winlog.timestamp"),
+            new CorrelationQuery("ad_logs", "ResultType:50126", "timestamp")
+        );
+        CorrelationRule networkWindowsAdLdapRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "netowrk to windows to ad/ldap", networkWindowsAdLdapQuery);
+        IndexCorrelationRuleRequest networkWindowsAdLdapRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, networkWindowsAdLdapRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, networkWindowsAdLdapRequest).get();
+
+        List<CorrelationQuery> s3AppLogsQuery = Arrays.asList(
+            new CorrelationQuery("s3_access_logs", "aws.cloudtrail.eventName:ReplicateObject", "timestamp"),
+            new CorrelationQuery("app_logs", "keywords:PermissionDenied", "timestamp")
+        );
+        CorrelationRule s3AppLogsRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "s3 to app logs", s3AppLogsQuery);
+        IndexCorrelationRuleRequest s3AppLogsRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, s3AppLogsRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, s3AppLogsRequest).get();
+
+        IndexRequest indexRequestNetwork = new IndexRequest("vpc_flow")
+            .source(sampleNetworkEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseNetwork = client().index(indexRequestNetwork).get();
+
+        String networkEventId = indexResponseNetwork.getId();
+        IndexCorrelationRequest networkCorrelationRequest = new IndexCorrelationRequest("vpc_flow", networkEventId, true);
+        IndexCorrelationResponse networkCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, networkCorrelationRequest).get();
+        Assert.assertEquals(200, networkCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(true, networkCorrelationResponse.getOrphan());
+
+        IndexRequest indexRequestAdLdap = new IndexRequest("ad_logs")
+            .source(sampleAdLdapEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAdLdap = client().index(indexRequestAdLdap).get();
+
+        String adLdapEventId = indexResponseAdLdap.getId();
+        IndexCorrelationRequest adLdapCorrelationRequest = new IndexCorrelationRequest("ad_logs", adLdapEventId, true);
+        IndexCorrelationResponse adLdapCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, adLdapCorrelationRequest).get();
+        Assert.assertEquals(200, adLdapCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, adLdapCorrelationResponse.getOrphan());
+        Assert.assertEquals(1, adLdapCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestWindows = new IndexRequest("windows")
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseWindows = client().index(indexRequestWindows).get();
+
+        String windowsEventId = indexResponseWindows.getId();
+        IndexCorrelationRequest windowsCorrelationRequest = new IndexCorrelationRequest("windows", windowsEventId, true);
+        IndexCorrelationResponse windowsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, windowsCorrelationRequest).get();
+        Assert.assertEquals(200, windowsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, windowsCorrelationResponse.getOrphan());
+        Assert.assertEquals(2, windowsCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestAppLogs = new IndexRequest("app_logs")
+            .source(sampleAppLogsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAppLogs = client().index(indexRequestAppLogs).get();
+
+        String appLogsEventId = indexResponseAppLogs.getId();
+        IndexCorrelationRequest appLogsCorrelationRequest = new IndexCorrelationRequest("app_logs", appLogsEventId, true);
+        IndexCorrelationResponse appLogsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, appLogsCorrelationRequest).get();
+        Assert.assertEquals(200, appLogsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, appLogsCorrelationResponse.getOrphan());
+        Assert.assertEquals(1, appLogsCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestS3Logs = new IndexRequest("s3_access_logs")
+            .source(sampleS3AccessEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseS3 = client().index(indexRequestS3Logs).get();
+
+        String s3EventId = indexResponseS3.getId();
+        IndexCorrelationRequest s3CorrelationRequest = new IndexCorrelationRequest("s3_access_logs", s3EventId, true);
+        IndexCorrelationResponse s3CorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, s3CorrelationRequest).get();
+        Assert.assertEquals(200, s3CorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, s3CorrelationResponse.getOrphan());
+        Assert.assertEquals(1, s3CorrelationResponse.getNeighborEvents().size());
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        searchSourceBuilder.fetchSource(true);
+        searchSourceBuilder.size(100);
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
+        searchRequest.source(searchSourceBuilder);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        Assert.assertEquals(12L, searchResponse.getHits().getTotalHits().value);
+    }
+
+    private String networkMappings() {
+        return "\"properties\": {\n" +
+            "      \"version\": {\n" +
+            "        \"type\": \"integer\"\n" +
+            "      },\n" +
+            "      \"account-id\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"interface-id\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"srcaddr\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"dstaddr\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"srcport\": {\n" +
+            "        \"type\": \"integer\"\n" +
+            "      },\n" +
+            "      \"dstport\": {\n" +
+            "        \"type\": \"integer\"\n" +
+            "      },\n" +
+            "      \"severity_id\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"class_name\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"timestamp\": {\n" +
+            "        \"type\": \"long\"\n" +
+            "      },\n" +
+            "    }";
+    }
+
+    private String sampleNetworkEvent() {
+        return "{\n" +
+            "  \"version\": 1,\n" +
+            "  \"account-id\": \"A12345\",\n" +
+            "  \"interface-id\": \"I12345\",\n" +
+            "  \"srcaddr\": \"1.2.3.4\",\n" +
+            "  \"dstaddr\": \"4.5.6.7\",\n" +
+            "  \"srcport\": 9000,\n" +
+            "  \"dstport\": 8000,\n" +
+            "  \"severity_id\": \"-1\",\n" +
+            "  \"class_name\": \"Network Activity\",\n" +
+            "  \"timestamp\": " + System.currentTimeMillis() + "\n" +
+            "}";
+    }
+
+    private String adLdapMappings() {
+        return "\"properties\": {\n" +
+            "      \"ResultType\": {\n" +
+            "        \"type\": \"integer\"\n" +
+            "      },\n" +
+            "      \"ResultDescription\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"winlog.event_data.TargetUserName\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"timestamp\": {\n" +
+            "        \"type\": \"long\"\n" +
+            "      },\n" +
+            "    }";
+    }
+
+    private String sampleAdLdapEvent() {
+        return "{\n" +
+            "  \"ResultType\": 50126,\n" +
+            "  \"ResultDescription\": \"Invalid username or password or Invalid on-premises username or password.\",\n" +
+            "  \"winlog.event_data.TargetUserName\": \"DEYSUBHO\",\n" +
+            "  \"timestamp\": " + System.currentTimeMillis() + "\n" +
+            "}";
     }
 
     private String windowsMappings() {
@@ -373,6 +581,32 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
             "  \"endpoint\": \"/customer_records.txt\",\n" +
             "  \"http_method\": \"POST\",\n" +
             "  \"keywords\": \"PermissionDenied\",\n" +
+            "  \"timestamp\": " + System.currentTimeMillis() + "\n" +
+            "}";
+    }
+
+    private String s3AccessLogsMapping() {
+        return "\"properties\": {\n" +
+            "      \"aws.cloudtrail.eventSource\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"aws.cloudtrail.eventName\": {\n" +
+            "        \"type\": \"text\"\n" +
+            "      },\n" +
+            "      \"aws.cloudtrail.eventTime\": {\n" +
+            "        \"type\": \"integer\"\n" +
+            "      },\n" +
+            "      \"timestamp\": {\n" +
+            "        \"type\": \"long\"\n" +
+            "      }\n" +
+            "    }";
+    }
+
+    private String sampleS3AccessEvent() {
+        return "{\n" +
+            "  \"aws.cloudtrail.eventSource\": \"s3.amazonaws.com\",\n" +
+            "  \"aws.cloudtrail.eventName\": \"ReplicateObject\",\n" +
+            "  \"aws.cloudtrail.eventTime\": 1,\n" +
             "  \"timestamp\": " + System.currentTimeMillis() + "\n" +
             "}";
     }

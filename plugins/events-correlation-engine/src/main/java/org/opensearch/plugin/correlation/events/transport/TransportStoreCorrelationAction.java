@@ -378,8 +378,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
 
                                         IndexRequest indexRequest = new IndexRequest(Correlation.CORRELATION_HISTORY_INDEX)
                                             .source(event.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-                                            .timeout(TimeValue.timeValueSeconds(60))
-                                            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                                            .timeout(TimeValue.timeValueSeconds(60));
                                         bulkRequest.add(indexRequest);
                                     }
 
@@ -408,12 +407,12 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
 
                                     IndexRequest indexRequest = new IndexRequest(Correlation.CORRELATION_HISTORY_INDEX)
                                         .source(event.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS))
-                                        .timeout(TimeValue.timeValueSeconds(60))
-                                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                                        .timeout(TimeValue.timeValueSeconds(60));
                                     bulkRequest.add(indexRequest);
                                 } catch (IOException ex) {
                                     onFailures(ex);
                                 }
+                                prevLevel = level;
                             }
 
                             if (totalNeighbors > 0L) {
@@ -642,7 +641,7 @@ public class TransportStoreCorrelationAction extends HandledTransportAction<Stor
                 level,
                 "",
                 "",
-                new float[]{},
+                new float[]{0.0f, 0.0f, 0.0f},
                 request.getTimestamp(),
                 "",
                 "",

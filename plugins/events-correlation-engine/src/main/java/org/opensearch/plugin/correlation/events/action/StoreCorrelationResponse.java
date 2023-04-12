@@ -34,4 +34,8 @@ public class StoreCorrelationResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
     }
+
+    public RestStatus getStatus() {
+        return status;
+    }
 }

@@ -13,7 +13,7 @@ import org.opensearch.action.ActionType;
 public class SearchCorrelatedEventsAction extends ActionType<SearchCorrelatedEventsResponse> {
 
     public static final SearchCorrelatedEventsAction INSTANCE = new SearchCorrelatedEventsAction();
-    public static final String NAME = "cluster:admin/correlation/events/search";
+    public static final String NAME = "cluster:admin/search/correlation/events";
 
     private SearchCorrelatedEventsAction() {
         super(NAME, SearchCorrelatedEventsResponse::new);

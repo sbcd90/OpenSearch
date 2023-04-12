@@ -37,6 +37,7 @@ import org.opensearch.plugin.correlation.rules.resthandler.RestIndexCorrelationR
 import org.opensearch.plugin.correlation.events.transport.TransportIndexCorrelationAction;
 import org.opensearch.plugin.correlation.rules.transport.TransportIndexCorrelationRuleAction;
 import org.opensearch.plugin.correlation.settings.EventsCorrelationSettings;
+import org.opensearch.plugin.correlation.utils.CorrelationIndices;
 import org.opensearch.plugin.correlation.utils.CorrelationRuleIndices;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.EnginePlugin;
@@ -64,6 +65,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
 
     private CorrelationRuleIndices correlationRuleIndices;
 
+    private CorrelationIndices correlationIndices;
+
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -79,7 +82,8 @@ public class EventsCorrelationPlugin extends Plugin implements ActionPlugin, Map
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         correlationRuleIndices = new CorrelationRuleIndices(client, clusterService);
-        return List.of(correlationRuleIndices);
+        correlationIndices = new CorrelationIndices(client, clusterService, clusterService.getSettings());
+        return List.of(correlationRuleIndices, correlationIndices);
     }
 
     @Override
