@@ -43,6 +43,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -436,6 +437,12 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
 
         client().admin().indices().create(windowsRequest).get();
 
+        String appLogsIndex = "app_logs";
+        CreateIndexRequest appLogsRequest = new CreateIndexRequest(appLogsIndex)
+            .mapping(appLogsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(appLogsRequest).get();
+
         List<CorrelationQuery> networkWindowsAdLdapQuery = Arrays.asList(
             new CorrelationQuery("vpc_flow", "dstaddr:4.5.6.7 or dstaddr:4.5.6.6", "timestamp"),
             new CorrelationQuery("windows", "winlog.event_data.SubjectDomainName:NTAUTHORI*", "winlog.timestamp"),
@@ -444,6 +451,182 @@ public class EventsCorrelationPluginTransportIT extends OpenSearchIntegTestCase 
         CorrelationRule networkWindowsAdLdapRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "netowrk to windows to ad/ldap", networkWindowsAdLdapQuery);
         IndexCorrelationRuleRequest networkWindowsAdLdapRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, networkWindowsAdLdapRule, RestRequest.Method.POST);
         client().execute(IndexCorrelationRuleAction.INSTANCE, networkWindowsAdLdapRequest).get();
+
+        IndexRequest indexRequestNetwork = new IndexRequest("vpc_flow")
+            .source(sampleNetworkEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseNetwork = client().index(indexRequestNetwork).get();
+
+        String networkEventId = indexResponseNetwork.getId();
+        IndexCorrelationRequest networkCorrelationRequest = new IndexCorrelationRequest("vpc_flow", networkEventId, true);
+        IndexCorrelationResponse networkCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, networkCorrelationRequest).get();
+        Assert.assertEquals(200, networkCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(true, networkCorrelationResponse.getOrphan());
+
+        IndexRequest indexRequestAdLdap = new IndexRequest("ad_logs")
+            .source(sampleAdLdapEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAdLdap = client().index(indexRequestAdLdap).get();
+
+        String adLdapEventId = indexResponseAdLdap.getId();
+        IndexCorrelationRequest adLdapCorrelationRequest = new IndexCorrelationRequest("ad_logs", adLdapEventId, true);
+        IndexCorrelationResponse adLdapCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, adLdapCorrelationRequest).get();
+        Assert.assertEquals(200, adLdapCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, adLdapCorrelationResponse.getOrphan());
+        Assert.assertEquals(1, adLdapCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestWindows = new IndexRequest("windows")
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseWindows = client().index(indexRequestWindows).get();
+
+        String windowsEventId = indexResponseWindows.getId();
+        IndexCorrelationRequest windowsCorrelationRequest = new IndexCorrelationRequest("windows", windowsEventId, true);
+        IndexCorrelationResponse windowsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, windowsCorrelationRequest).get();
+        Assert.assertEquals(200, windowsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, windowsCorrelationResponse.getOrphan());
+        Assert.assertEquals(2, windowsCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestAppLogs = new IndexRequest("app_logs")
+            .source(sampleAppLogsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAppLogs = client().index(indexRequestAppLogs).get();
+
+        String appLogsEventId = indexResponseAppLogs.getId();
+        IndexCorrelationRequest appLogsCorrelationRequest = new IndexCorrelationRequest("app_logs", appLogsEventId, true);
+        IndexCorrelationResponse appLogsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, appLogsCorrelationRequest).get();
+        Assert.assertEquals(200, appLogsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(true, appLogsCorrelationResponse.getOrphan());
+        Assert.assertEquals(0, appLogsCorrelationResponse.getNeighborEvents().size());
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.matchQuery("index1", "app_logs"));
+        searchSourceBuilder.fetchSource(true);
+        searchSourceBuilder.size(100);
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
+        searchRequest.source(searchSourceBuilder);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(100, Objects.requireNonNull(searchResponse.getHits().getHits()[0].getSourceAsMap()).get("level"));
+    }
+
+    public void testStoringCorrelationWithMultipleLevelsWithSeparateGroups() throws ExecutionException, InterruptedException {
+        String networkIndex = "vpc_flow";
+        CreateIndexRequest networkRequest = new CreateIndexRequest(networkIndex)
+            .mapping(networkMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(networkRequest).get();
+
+        String adLdapIndex = "ad_logs";
+        CreateIndexRequest adLdapRequest = new CreateIndexRequest(adLdapIndex)
+            .mapping(adLdapMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(adLdapRequest).get();
+
+        String windowsIndex = "windows";
+        CreateIndexRequest windowsRequest = new CreateIndexRequest(windowsIndex)
+            .mapping(windowsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(windowsRequest).get();
+
+        String appLogsIndex = "app_logs";
+        CreateIndexRequest appLogsRequest = new CreateIndexRequest(appLogsIndex)
+            .mapping(appLogsMappings()).settings(Settings.EMPTY);
+
+        client().admin().indices().create(appLogsRequest).get();
+
+        List<CorrelationQuery> networkWindowsAdLdapQuery = Arrays.asList(
+            new CorrelationQuery("vpc_flow", "dstaddr:4.5.6.7 or dstaddr:4.5.6.6", "timestamp"),
+            new CorrelationQuery("windows", "winlog.event_data.SubjectDomainName:NTAUTHORI*", "winlog.timestamp"),
+            new CorrelationQuery("ad_logs", "ResultType:50126", "timestamp")
+        );
+        CorrelationRule networkWindowsAdLdapRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "netowrk to windows to ad/ldap", networkWindowsAdLdapQuery);
+        IndexCorrelationRuleRequest networkWindowsAdLdapRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, networkWindowsAdLdapRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, networkWindowsAdLdapRequest).get();
+
+        List<CorrelationQuery> s3AppLogsQuery = Arrays.asList(
+            new CorrelationQuery("s3_access_logs", "aws.cloudtrail.eventName:ReplicateObject", "timestamp"),
+            new CorrelationQuery("app_logs", "keywords:PermissionDenied", "timestamp")
+        );
+        CorrelationRule s3AppLogsRule = new CorrelationRule(CorrelationRule.NO_ID, CorrelationRule.NO_VERSION, "s3 to app logs", s3AppLogsQuery);
+        IndexCorrelationRuleRequest s3AppLogsRequest = new IndexCorrelationRuleRequest(CorrelationRule.NO_ID, s3AppLogsRule, RestRequest.Method.POST);
+        client().execute(IndexCorrelationRuleAction.INSTANCE, s3AppLogsRequest).get();
+
+        IndexRequest indexRequestNetwork = new IndexRequest("vpc_flow")
+            .source(sampleNetworkEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseNetwork = client().index(indexRequestNetwork).get();
+
+        String networkEventId = indexResponseNetwork.getId();
+        IndexCorrelationRequest networkCorrelationRequest = new IndexCorrelationRequest("vpc_flow", networkEventId, true);
+        IndexCorrelationResponse networkCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, networkCorrelationRequest).get();
+        Assert.assertEquals(200, networkCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(true, networkCorrelationResponse.getOrphan());
+
+        IndexRequest indexRequestAdLdap = new IndexRequest("ad_logs")
+            .source(sampleAdLdapEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAdLdap = client().index(indexRequestAdLdap).get();
+
+        String adLdapEventId = indexResponseAdLdap.getId();
+        IndexCorrelationRequest adLdapCorrelationRequest = new IndexCorrelationRequest("ad_logs", adLdapEventId, true);
+        IndexCorrelationResponse adLdapCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, adLdapCorrelationRequest).get();
+        Assert.assertEquals(200, adLdapCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, adLdapCorrelationResponse.getOrphan());
+        Assert.assertEquals(1, adLdapCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestWindows = new IndexRequest("windows")
+            .source(sampleWindowsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseWindows = client().index(indexRequestWindows).get();
+
+        String windowsEventId = indexResponseWindows.getId();
+        IndexCorrelationRequest windowsCorrelationRequest = new IndexCorrelationRequest("windows", windowsEventId, true);
+        IndexCorrelationResponse windowsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, windowsCorrelationRequest).get();
+        Assert.assertEquals(200, windowsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, windowsCorrelationResponse.getOrphan());
+        Assert.assertEquals(2, windowsCorrelationResponse.getNeighborEvents().size());
+
+        IndexRequest indexRequestAppLogs = new IndexRequest("app_logs")
+            .source(sampleAppLogsEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseAppLogs = client().index(indexRequestAppLogs).get();
+
+        String appLogsEventId = indexResponseAppLogs.getId();
+        IndexCorrelationRequest appLogsCorrelationRequest = new IndexCorrelationRequest("app_logs", appLogsEventId, true);
+        IndexCorrelationResponse appLogsCorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, appLogsCorrelationRequest).get();
+        Assert.assertEquals(200, appLogsCorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(true, appLogsCorrelationResponse.getOrphan());
+
+        IndexRequest indexRequestS3Logs = new IndexRequest("s3_access_logs")
+            .source(sampleS3AccessEvent(), XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        IndexResponse indexResponseS3 = client().index(indexRequestS3Logs).get();
+
+        String s3EventId = indexResponseS3.getId();
+        IndexCorrelationRequest s3CorrelationRequest = new IndexCorrelationRequest("s3_access_logs", s3EventId, true);
+        IndexCorrelationResponse s3CorrelationResponse = client().execute(IndexCorrelationAction.INSTANCE, s3CorrelationRequest).get();
+        Assert.assertEquals(200, s3CorrelationResponse.getStatus().getStatus());
+        Assert.assertEquals(false, s3CorrelationResponse.getOrphan());
+        Assert.assertEquals(1, s3CorrelationResponse.getNeighborEvents().size());
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.query(QueryBuilders.boolQuery()
+            .must(QueryBuilders.matchQuery("index2", "app_logs"))
+            .must(QueryBuilders.matchQuery("index1", "s3_access_logs")));
+        searchSourceBuilder.fetchSource(true);
+        searchSourceBuilder.size(100);
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.indices(Correlation.CORRELATION_HISTORY_INDEX);
+        searchRequest.source(searchSourceBuilder);
+
+        SearchResponse searchResponse = client().search(searchRequest).get();
+        Assert.assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        Assert.assertEquals(75, Objects.requireNonNull(searchResponse.getHits().getHits()[0].getSourceAsMap()).get("level"));
     }
 
     private String networkMappings() {
